@@ -828,7 +828,7 @@ _CONFIGS = [
         ).get_freeze_filter(),
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
-        wandb_enabled=False
+        wandb_enabled=False,
         batch_size=32,
     ),
     TrainConfig(
