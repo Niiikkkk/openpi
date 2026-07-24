@@ -812,7 +812,7 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="ur7e_pi05_finetune_lora",
-        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=30),
+        model=pi0_config.Pi0Config(dtype="float16",paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=30),
         data=LeRobotUR7eDataConfig(
             repo_id="ur7e_single_arm",
             base_config=DataConfig(prompt_from_task=True),
@@ -824,7 +824,7 @@ _CONFIGS = [
         # for the given model config for LoRA finetuning. Just make sure it matches the model config
         # you chose above.
         freeze_filter=pi0_config.Pi0Config(
-            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=30
+            dtype="float16", paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=30
         ).get_freeze_filter(),
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
