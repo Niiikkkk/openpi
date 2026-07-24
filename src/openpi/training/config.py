@@ -812,7 +812,6 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="ur7e_pi05_finetune_lora",
-        # Here is an example of loading a pi0 model for LoRA fine-tuning.
         model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=30),
         data=LeRobotUR7eDataConfig(
             repo_id="ur7e_single_arm",
@@ -829,6 +828,8 @@ _CONFIGS = [
         ).get_freeze_filter(),
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
+        wandb_enabled=False
+        batch_size=32,
     ),
     TrainConfig(
         name="pi0_libero_low_mem_finetune",
