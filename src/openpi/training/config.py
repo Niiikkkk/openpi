@@ -29,6 +29,8 @@ import openpi.training.optimizer as _optimizer
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
 
+import openpi.policies.ur7e_single_arm as ur7e_policy
+
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
 Filter: TypeAlias = nnx.filterlib.Filter
@@ -461,6 +463,46 @@ class LeRobotDROIDDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
         )
 
+@dataclasses.dataclass(frozen=True)
+#TODO: Modify THIS
+class LeRobotUR7eDataConfig(DataConfigFactory):
+   
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "image": "image",
+                        "wrist_image": "wrist_image",
+                        "state": "state",
+                        "actions": "actions",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+        # We assume joint *velocity* actions, so we should *not* apply an additional delta transform.
+        data_transforms = _transforms.Group(
+                inputs=[ur7e_policy.UR7eInputs(model_type=model_config.model_type)],
+                outputs=[ur7e_policy.UR7eOutputs()],
+            )
+        
+        delta_action_mask = _transforms.make_bool_mask(6, -1)
+        data_transforms = data_transforms.push(
+            inputs=[_transforms.DeltaActions(delta_action_mask)],
+            outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+        )
+
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class TrainConfig:
@@ -641,6 +683,73 @@ _CONFIGS = [
         ),
     ),
     #
+    # Inference-only bimanual UR7e config.
+    #
+    # Zero-shot inference with the pi0 base model on a custom bimanual UR7e, reusing norm stats from
+    # the "ur5e_dual" pretraining asset (same bimanual 6-joint-plus-gripper-per-arm layout). That
+    # dataset's action mean is ~0 for the joint dims and ~0.4-0.5 for the gripper dims, meaning it was
+    # collected with joint actions expressed as *deltas* relative to the current state and the gripper
+    # action expressed as an *absolute* normalized value -- same convention as LeRobotAlohaDataConfig.
+    # We replicate that with DeltaActions/AbsoluteActions below; without it, the model's small
+    # near-zero joint deltas would be misinterpreted as absolute joint targets.
+    TrainConfig(
+        name="pi0_ur7e_single_arm_FAST",
+        model=pi0_fast.Pi0FASTConfig(),
+        data=SimpleDataConfig(
+            assets=AssetsConfig(assets_dir="gs://openpi-assets/checkpoints/pi0_fast_base/assets", asset_id="ur5e"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ur7e_single_policy.UR7e_Single_Inputs(model_type=ModelType.PI0_FAST)],
+                outputs=[ur7e_single_policy.UR7e_Single_Outputs()],
+            ).push(
+                inputs=[_transforms.DeltaActions(_transforms.make_bool_mask(6, -1))],
+                outputs=[_transforms.AbsoluteActions(_transforms.make_bool_mask(6, -1))],
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi0_ur7e_single_arm",
+        model=pi0_config.Pi0Config(),
+        data=SimpleDataConfig(
+            assets=AssetsConfig(assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets", asset_id="ur5e"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ur7e_single_policy.UR7e_Single_Inputs(model_type=ModelType.PI0)],
+                outputs=[ur7e_single_policy.UR7e_Single_Outputs()],
+            ).push(
+                inputs=[_transforms.DeltaActions(_transforms.make_bool_mask(6, -1))],
+                outputs=[_transforms.AbsoluteActions(_transforms.make_bool_mask(6, -1))],
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi0_ur7e",
+        model=pi0_config.Pi0Config(),
+        data=SimpleDataConfig(
+            assets=AssetsConfig(assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets", asset_id="ur5e"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ur7e_policy.UR7eInputs(model_type=ModelType.PI0)],
+                outputs=[ur7e_policy.UR7eOutputs()],
+            ).push(
+                inputs=[_transforms.DeltaActions(_transforms.make_bool_mask(6, -1, 6, -1))],
+                outputs=[_transforms.AbsoluteActions(_transforms.make_bool_mask(6, -1, 6, -1))],
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi05_ur7e",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=30),
+        data=SimpleDataConfig(
+            assets=AssetsConfig(assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets", asset_id="ur5e"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ur7e_policy.UR7eInputs(model_type=ModelType.PI05)],
+                outputs=[ur7e_policy.UR7eOutputs()],
+            )
+            # .push(
+            #     inputs=[_transforms.DeltaActions(_transforms.make_bool_mask(6, -1))],
+            #     outputs=[_transforms.AbsoluteActions(_transforms.make_bool_mask(6, -1))],
+            # ),
+        ),
+    ),
+    #
     # Fine-tuning Libero configs.
     #
     # These train configs define the hyperparameters for fine-tuning the base model on your own dataset.
@@ -674,6 +783,52 @@ _CONFIGS = [
         # Below you can define other hyperparameters like the learning rate, number of training steps, etc.
         # Check the base TrainConfig class for a full list of available hyperparameters.
         num_train_steps=30_000,
+    ),
+    TrainConfig(
+        # Change the name to reflect your model and dataset.
+        name="ur7e_pi05_finetune_all",
+        # Here you define the model config -- In this example we use pi0 as the model
+        # architecture and perform *full* finetuning. in the examples below we show how to modify
+        # this to perform *low-memory* (LORA) finetuning and use pi0-FAST as an alternative architecture.
+        model=pi0_config.Pi0Config(pi05=True,action_horizon=30),
+        # Here you define the dataset you are training on. In this example we use the Libero
+        # dataset. For your own dataset, you can change the repo_id to point to your dataset.
+        # Also modify the DataConfig to use the new config you made for your dataset above.
+        data=LeRobotUR7eDataConfig(
+            repo_id="ur7e_single_arm",
+            base_config=DataConfig(
+                # This flag determines whether we load the prompt (i.e. the task instruction) from the
+                # ``task`` field in the LeRobot dataset. If set to True, the prompt will show up in
+                # a field called ``prompt`` in the input dict. The recommended setting is True.
+                prompt_from_task=True,
+            ),
+        ),
+        # Here you define which pre-trained checkpoint you want to load to initialize the model.
+        # This should match the model config you chose above -- i.e. in this case we use the pi0 base model.
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        # Below you can define other hyperparameters like the learning rate, number of training steps, etc.
+        # Check the base TrainConfig class for a full list of available hyperparameters.
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="ur7e_pi05_finetune_lora",
+        # Here is an example of loading a pi0 model for LoRA fine-tuning.
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=30),
+        data=LeRobotUR7eDataConfig(
+            repo_id="ur7e_single_arm",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=30_000,
+        # The freeze filter defines which parameters should be frozen during training.
+        # We have a convenience function in the model config that returns the default freeze filter
+        # for the given model config for LoRA finetuning. Just make sure it matches the model config
+        # you chose above.
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=30
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
     ),
     TrainConfig(
         name="pi0_libero_low_mem_finetune",
