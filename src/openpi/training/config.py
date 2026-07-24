@@ -808,7 +808,7 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         # Below you can define other hyperparameters like the learning rate, number of training steps, etc.
         # Check the base TrainConfig class for a full list of available hyperparameters.
-        num_train_steps=30_000,
+        num_train_steps=10_000,
     ),
     TrainConfig(
         name="ur7e_pi05_finetune_lora",
@@ -818,7 +818,7 @@ _CONFIGS = [
             base_config=DataConfig(prompt_from_task=True),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=30_000,
+        num_train_steps=10_000,
         # The freeze filter defines which parameters should be frozen during training.
         # We have a convenience function in the model config that returns the default freeze filter
         # for the given model config for LoRA finetuning. Just make sure it matches the model config
@@ -829,7 +829,7 @@ _CONFIGS = [
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
         wandb_enabled=False,
-        batch_size=8,
+        batch_size=16,
     ),
     TrainConfig(
         name="pi0_libero_low_mem_finetune",
