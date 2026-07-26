@@ -738,15 +738,15 @@ _CONFIGS = [
         name="pi05_ur7e",
         model=pi0_config.Pi0Config(pi05=True, action_horizon=30),
         data=SimpleDataConfig(
-            assets=AssetsConfig(assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets", asset_id="ur5e"),
+            assets=AssetsConfig(assets_dir="checkpoints/ur7e_pi05_finetune_lora/ur7e_lora/5000/assets/ur7e_single_arm", asset_id="ur5e"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ur7e_policy.UR7eInputs(model_type=ModelType.PI05)],
                 outputs=[ur7e_policy.UR7eOutputs()],
             )
-            # .push(
-            #     inputs=[_transforms.DeltaActions(_transforms.make_bool_mask(6, -1))],
-            #     outputs=[_transforms.AbsoluteActions(_transforms.make_bool_mask(6, -1))],
-            # ),
+            .push(
+                inputs=[_transforms.DeltaActions(_transforms.make_bool_mask(6, -1))],
+                outputs=[_transforms.AbsoluteActions(_transforms.make_bool_mask(6, -1))],
+            ),
         ),
     ),
     #
@@ -783,6 +783,32 @@ _CONFIGS = [
         # Below you can define other hyperparameters like the learning rate, number of training steps, etc.
         # Check the base TrainConfig class for a full list of available hyperparameters.
         num_train_steps=30_000,
+    ),
+    TrainConfig(
+        # Change the name to reflect your model and dataset.
+        name="ur7e_pi0_finetune_all",
+        # Here you define the model config -- In this example we use pi0 as the model
+        # architecture and perform *full* finetuning. in the examples below we show how to modify
+        # this to perform *low-memory* (LORA) finetuning and use pi0-FAST as an alternative architecture.
+        model=pi0_config.Pi0Config(action_horizon=50),
+        # Here you define the dataset you are training on. In this example we use the Libero
+        # dataset. For your own dataset, you can change the repo_id to point to your dataset.
+        # Also modify the DataConfig to use the new config you made for your dataset above.
+        data=LeRobotUR7eDataConfig(
+            repo_id="ur7e_single_arm",
+            base_config=DataConfig(
+                # This flag determines whether we load the prompt (i.e. the task instruction) from the
+                # ``task`` field in the LeRobot dataset. If set to True, the prompt will show up in
+                # a field called ``prompt`` in the input dict. The recommended setting is True.
+                prompt_from_task=True,
+            ),
+        ),
+        # Here you define which pre-trained checkpoint you want to load to initialize the model.
+        # This should match the model config you chose above -- i.e. in this case we use the pi0 base model.
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        # Below you can define other hyperparameters like the learning rate, number of training steps, etc.
+        # Check the base TrainConfig class for a full list of available hyperparameters.
+        num_train_steps=20_000,
     ),
     TrainConfig(
         # Change the name to reflect your model and dataset.

@@ -13,7 +13,7 @@ from isaacsim.core.utils.types import ArticulationActions
 from isaacsim.sensors.experimental.rtx import RtxCamera
 from isaacsim.sensors.experimental.rtx import CameraSensor
 
-CAMERA_RESOLUTION = (256, 256)
+CAMERA_RESOLUTION = (320, 480)
 #WRIST_CAMERA_RESOLUTION = (320,180)
 N_TICKS = 10  # ticks to wait for annotator data to become valid
 

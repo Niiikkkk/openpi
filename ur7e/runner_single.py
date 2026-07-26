@@ -11,7 +11,7 @@ Usage:
 
 import argparse
 
-ROOT = ""
+ROOT = "/World"
 ROBOT_1 = ROOT + "/ur7e_1"
 #ROBOT_2 = ROOT + "/ur7e_2"
 WRIST_CAMERA_1_PATH = ROOT + ROBOT_1 + "/Geometry/arm1_base_link/arm1_shoulder_link/arm1_upperarm_link/arm1_forearm_link/arm1_wrist1_link/arm1_wrist2_link/arm1_wrist3_link/arm1_end_effector_link/daA2500_14uc_1"   # placeholder

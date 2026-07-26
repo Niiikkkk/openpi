@@ -35,7 +35,7 @@ class Args:
     max_timesteps: int = 600
     # Sleep between steps, in seconds (matches your control rate).
     control_dt: float = 0.1
-    open_loop_horizon: int = 30
+    open_loop_horizon: int = 8
 
     # If true (default), predicted actions are printed instead of sent to the robot.
     dry_run: bool = True
@@ -96,7 +96,7 @@ class Ur7eRobot:
         state = obs["joint_positions_1"][0][:-1]
         gripper = obs["joint_positions_1"][:,-1][0]
 
-        gripper = self.normalize_gripper(gripper)
+        #gripper = self.normalize_gripper(gripper)
 
         state = np.concatenate([state, [gripper]])
 
@@ -105,18 +105,18 @@ class Ur7eRobot:
         top_image = obs["top"]
         wrist_image = obs["wrist_1"]
         return {
-            "observation/top_image": top_image,
-            "observation/wrist_image": wrist_image,
-            "observation/state": state,
+            "image": top_image,
+            "wrist_image": wrist_image,
+            "state": state,
             "prompt": args.prompt,
         }    
 
     def post_process_action(self, action: np.ndarray, current_state: np.ndarray) -> np.ndarray:
         action = action.copy()
         # action[:, _JOINT_IDX] = _resolve_multiturn(current_state[_JOINT_IDX], action[:, _JOINT_IDX])
-        action[:,6] = self.unnormalize_gripper(action[:,6])
+        #action[:,6] = self.unnormalize_gripper(action[:,6])
         # Make to absolute positions
-        action[:,_JOINT_IDX] = action[:,_JOINT_IDX] + current_state[_JOINT_IDX]
+        #action[:,_JOINT_IDX] = action[:,_JOINT_IDX] + current_state[_JOINT_IDX]
         return action
         
 
@@ -132,9 +132,6 @@ class Ur7eRobot:
 
 def main(args: Args) -> None:
     robot = Ur7eRobot()
-
-    print(sim_state.state.robot_1.dof_names)
-    exit()
 
     base_policy = _websocket_client_policy.WebsocketClientPolicy(host=args.host, port=args.port, api_key=args.api_key)
     print("Server metadata:", base_policy.get_server_metadata())
@@ -157,14 +154,14 @@ def main(args: Args) -> None:
 
             actions = np.asarray(result["actions"])
 
-            print(f"[step {step}] state={obs['observation/state']}")
+            print(f"[step {step}] state={obs['state']}")
 
             print(f"[step {step}] PRE_PROCESSING {elapsed_ms:.1f} ms, action={actions}")
 
-            actions = robot.post_process_action(actions, obs["observation/state"])
+            # actions = robot.post_process_action(actions, obs["state"])
         
             
-            print(f"[step {step}] POST_PROCESSING {elapsed_ms:.1f} ms, action={actions}")
+            # print(f"[step {step}] POST_PROCESSING {elapsed_ms:.1f} ms, action={actions}")
         action = actions[actions_from_chunk_completed]
         actions_from_chunk_completed += 1
 
