@@ -811,6 +811,27 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     TrainConfig(
+        name="ur7e_pi0_finetune_lora",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", action_horizon=50),
+        data=LeRobotUR7eDataConfig(
+            repo_id="ur7e_single_arm",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10_000,
+        # The freeze filter defines which parameters should be frozen during training.
+        # We have a convenience function in the model config that returns the default freeze filter
+        # for the given model config for LoRA finetuning. Just make sure it matches the model config
+        # you chose above.
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", action_horizon=50
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+        wandb_enabled=False,
+        batch_size=16,
+    ),
+    TrainConfig(
         # Change the name to reflect your model and dataset.
         name="ur7e_pi05_finetune_all",
         # Here you define the model config -- In this example we use pi0 as the model
