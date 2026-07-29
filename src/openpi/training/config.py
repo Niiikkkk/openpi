@@ -877,6 +877,7 @@ _CONFIGS = [
         ema_decay=None,
         wandb_enabled=False,
         batch_size=32,
+        keep_period=1000,
     ),
     TrainConfig(
         name="pi0_libero_low_mem_finetune",

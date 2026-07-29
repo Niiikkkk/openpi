@@ -225,12 +225,6 @@ def main(config: _config.TrainConfig):
     data_iter = iter(data_loader)
     batch = next(data_iter)
 
-    print(batch[0].images["base_0_rgb"].shape)
-    print(batch[0].images["left_wrist_0_rgb"].shape)
-    print(batch[0].state.shape)
-    print(batch[0])
-    exit()
-
     logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
 
     # Log images from first batch to sanity check.
