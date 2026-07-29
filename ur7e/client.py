@@ -35,7 +35,7 @@ class Args:
     max_timesteps: int = 600
     # Sleep between steps, in seconds (matches your control rate).
     control_dt: float = 0.1
-    open_loop_horizon: int = 8
+    open_loop_horizon: int = 20
 
     # If true (default), predicted actions are printed instead of sent to the robot.
     dry_run: bool = True

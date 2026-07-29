@@ -79,7 +79,7 @@ def main(data_dir: str, *, push_to_hub: bool = False):
     )
 
     
-    episode_paths = list(data_dir.glob("gefinal_dataset.hdf5"))
+    episode_paths = list(data_dir.glob("final_dataset.hdf5"))
     print(f"Found {len(episode_paths)} episodes for conversion")
 
     # We will loop over each dataset_name and write episodes to the LeRobot dataset
@@ -87,7 +87,7 @@ def main(data_dir: str, *, push_to_hub: bool = False):
         demos = h5py.File(episode_path, "r")["data"]
         for demo in tqdm(demos.items(), desc="Converting demos"):
             name, demo_data = demo
-            steps = demo_data["actions_cartesian"].shape[0]
+            steps = demo_data["actions"].shape[0]
             for step in range(steps):
                 dataset.add_frame(
                     {
