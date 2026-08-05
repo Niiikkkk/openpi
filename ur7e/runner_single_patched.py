@@ -4,18 +4,20 @@ app update loop yourself. `test.py` keeps working unchanged — it connects
 to the same python_server socket (127.0.0.1:8226) and injects code into
 this already-running process instead of a GUI instance.
 
+Same raw-stage approach as runner_single.py, but uses sim_state_patched (not sim_state) --
+see robot_setup.py/usd_patches.py for what that adds (matching actuator gains + USD patches
+to the environment that actually recorded the training dataset).
+
 Usage:
-    python runner.py            # headless
-    python runner.py --gui      # with viewport window
+    python runner_single_patched.py            # headless
+    python runner_single_patched.py --gui      # with viewport window
 """
 
 import argparse
 
 ROOT = "/World"
 ROBOT_1 = ROOT + "/ur7e_1"
-#ROBOT_2 = ROOT + "/ur7e_2"
-WRIST_CAMERA_1_PATH =  ROBOT_1 + "/Geometry/arm1_base_link/arm1_shoulder_link/arm1_upperarm_link/arm1_forearm_link/arm1_wrist1_link/arm1_wrist2_link/arm1_wrist3_link/arm1_end_effector_link/daA2500_14uc_1"   # placeholder
-#WRIST_CAMERA_2_PATH =  ROBOT_2 + "/Geometry/arm1_base_link/arm1_shoulder_link/arm1_upperarm_link/arm1_forearm_link/arm1_wrist1_link/arm1_wrist2_link/arm1_wrist3_link/arm1_end_effector_link/daA2500_14uc_2"   # placeholder
+WRIST_CAMERA_1_PATH = ROBOT_1 + "/Geometry/arm1_base_link/arm1_shoulder_link/arm1_upperarm_link/arm1_forearm_link/arm1_wrist1_link/arm1_wrist2_link/arm1_wrist3_link/arm1_end_effector_link/daA2500_14uc_1"  # placeholder
 TOP_CAMERA_PATH = ROOT + "/VCXG_2_51C"
 # Source-USD child names, verbatim (see ur7e_bimanual_pick_env_cfg.py's SubPrimReferenceCfg
 # comments) -- the dynamic (non-kinematic) rigid bodies a replayed episode needs teleported back to
@@ -32,13 +34,11 @@ from isaacsim.simulation_app import SimulationApp
 simulation_app = SimulationApp({"headless": not args.gui})
 
 
-import sim_state as sim_state
+import sim_state_patched as sim_state
 
-sim_state.state.run_environment("/home/adminalp/Desktop/Table_with_robots_single_robot.usd",args,simulation_app, robot_1_path=ROBOT_1)
+sim_state.state.run_environment("/home/adminalp/Desktop/Table_with_robots_single_robot.usd", args, simulation_app)
 
-EEF_1_PATH = ROBOT_1 + "/Geometry/arm1_base_link/arm1_shoulder_link/arm1_upperarm_link/arm1_forearm_link/arm1_wrist1_link/arm1_wrist2_link/arm1_wrist3_link/arm1_end_effector_link"
-
-sim_state.state.setup(ROBOT_1,{"top": TOP_CAMERA_PATH, "wrist_1": WRIST_CAMERA_1_PATH}, rigid_object_paths=RIGID_OBJECT_PATHS, eef_path=EEF_1_PATH)
+sim_state.state.setup(ROBOT_1, {"top": TOP_CAMERA_PATH, "wrist_1": WRIST_CAMERA_1_PATH}, rigid_object_paths=RIGID_OBJECT_PATHS)
 sim_state.state.tick()
 
 print("Simulation is running...")
@@ -53,6 +53,3 @@ except KeyboardInterrupt:
 finally:
     print("Stopping simulation...")
     simulation_app.close()
-
-
-#setup runner with the sim_state class

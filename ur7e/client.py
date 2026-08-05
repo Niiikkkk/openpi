@@ -12,7 +12,7 @@ robot, so sanity-check a few predictions before passing `--no-dry-run`.
 
 import dataclasses
 import time
-import sim_state
+import sim_state as sim_state
 
 import numpy as np
 from openpi_client import action_chunk_broker
@@ -35,7 +35,7 @@ class Args:
     max_timesteps: int = 600
     # Sleep between steps, in seconds (matches your control rate).
     control_dt: float = 0.1
-    open_loop_horizon: int = 20
+    open_loop_horizon: int = 30
 
     # If true (default), predicted actions are printed instead of sent to the robot.
     dry_run: bool = True
@@ -44,6 +44,70 @@ class Args:
 # Indices into the [14] state/action layout that are joint angles (radians, potentially multi-turn
 # on the real/sim driver), as opposed to the gripper dims (6, 13).
 _JOINT_IDX = [0, 1, 2, 3, 4, 5]
+
+def follow_trajectory():
+    import h5py
+
+    hd5f_file = "/home/adminalp/Desktop/IsaacLab/datasets/final_dataset_33.hdf5"
+    h5f = h5py.File(hd5f_file, "r")["data"]["demo_0"]
+
+    # Teleport the scene to this episode's recorded initial_state before playback -- mirrors
+    # env.reset_to() in IsaacLab's replay_demos.py. Table/cube/cup are real dynamic rigid bodies,
+    # not fixed/kinematic, so without this they're left wherever they physically settled since the
+    # sim process started, not necessarily where this specific episode's trajectory assumes them
+    # to be.
+    initial_state = h5f["initial_state"]
+
+    # Re-run SimulationContext.reset() here (not just once at startup in run_environment) --
+    # this may clear more physics-internal state (contact caches, warm-start data, etc.) than our
+    # own position/velocity-only resets on individual prims do, which is the kind of thing a manual
+    # GUI Stop/Play was fixing that nothing else tried so far has replicated. Must run BEFORE the
+    # pose overrides below, since it resets everything back to the stage's originally authored
+    # state first.
+    sim_state.state.sim_context.reset()
+
+    # Sanity-check the articulation's own root Xform against what this episode was actually
+    # recorded at -- a raw open_stage() never teleports this the way IsaacLab's per-episode reset
+    # does, so any mismatch here offsets the whole arm (and gripper) by a constant amount in world
+    # space, which looks exactly like "too high" / "wrong on X" everywhere in the trajectory.
+    expected_root_pose = np.asarray(initial_state["articulation"]["robot_1"]["root_pose"])[0]
+    actual_root_pos, actual_root_quat = sim_state.state.get_robot_root_pose()
+    print("robot root pose -- expected:", expected_root_pose[:3], expected_root_pose[3:],
+          "actual (pre-reset):", actual_root_pos, actual_root_quat)
+    sim_state.state.reset_robot_root(expected_root_pose[:3], expected_root_pose[3:])
+
+    joint_pos_0 = np.asarray(initial_state["articulation"]["robot_1"]["joint_position"])[0, :7]
+    sim_state.state.reset_robot_joints(joint_pos_0, joint_indices=[0, 1, 2, 3, 4, 5, 6])
+    for name in ("table", "cube", "cup"):
+        root_pose = np.asarray(initial_state["rigid_object"][name]["root_pose"])[0]
+        sim_state.state.reset_rigid_object(name, root_pose[:3], root_pose[3:])
+    # sim_state.state.tick()
+
+    recorded_eef = np.asarray(h5f["obs"]["eef_pose"])
+    recorded_cube_pose = np.asarray(h5f["states"]["rigid_object"]["cube"]["root_pose"])
+    recorded_effort = np.asarray(h5f["joint_torque"]["applied"])
+
+    # for step, action in enumerate(h5f["joint_pos_target"][0:]):
+    for step, action in enumerate(h5f["joint_pos"][0:]):
+        # action[-1] = h5f["joint_pos_target"][step][-1]
+        sim_state.state.move_robot(action, sim_state.state.robot_1, indices=[0,1,2,3,4,5,6])
+        sim_state.state.tick()
+        actual = sim_state.state.robot_1.get_joint_positions()[0, :7]
+        if 50 <= step <= 90:
+            error = np.asarray(action) - np.asarray(actual)
+            efforts = sim_state.state.get_applied_joint_efforts()[0]
+            eef_pos, eef_quat = sim_state.state.get_eef_pose()
+            cube_pos, cube_quat = sim_state.state.rigid_objects["cube"].get_world_poses()
+            cube_pos = cube_pos[0]
+            print(step, "effort actual", np.round(np.asarray(efforts), 2),
+                  "effort recorded", np.round(recorded_effort[step], 2))
+            print(step, "commanded", np.round(action, 3), "actual", np.round(actual, 3), "error", np.round(error, 3),
+                  "applied_effort_gripper", np.round(efforts[6], 3))
+            print(step, "cube_pos actual", np.round(np.asarray(cube_pos), 4),
+                  "cube_pos recorded", np.round(recorded_cube_pose[step, :3], 4))
+            print(step, "eef_z actual", round(float(eef_pos[2]), 4), "eef_z recorded", round(float(recorded_eef[step, 2]), 4))
+        time.sleep(0.1)
+        
 
 
 def _resolve_multiturn(current_raw: np.ndarray, target_wrapped: np.ndarray) -> np.ndarray:
@@ -175,7 +239,9 @@ def main(args: Args) -> None:
 # Injected into an already-running Isaac Sim process via connect_to_isaac.py -- there's no
 # argv to parse here (this shares sys.argv with whatever launched runner.py), so edit these
 # values directly rather than passing CLI flags.
-main(Args(host="localhost", port=8000, prompt="pick up the red cube and place in the blue cup", dry_run=False, control_dt=0.1))
+# main(Args(host="localhost", port=8000, prompt="pick up the red cube and place in the blue cup", dry_run=False, control_dt=0.1))
+
+follow_trajectory()
 
 # print(sim_state.state.robot_1._joint_names_to_idx)
 

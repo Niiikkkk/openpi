@@ -79,7 +79,7 @@ def main(data_dir: str, *, push_to_hub: bool = False):
     )
 
     
-    episode_paths = list(data_dir.glob("final_dataset.hdf5"))
+    episode_paths = list(data_dir.glob("dataset_generated.hdf5"))
     print(f"Found {len(episode_paths)} episodes for conversion")
 
     # We will loop over each dataset_name and write episodes to the LeRobot dataset
@@ -94,7 +94,7 @@ def main(data_dir: str, *, push_to_hub: bool = False):
                         "image": demo_data["obs"]["top_camera"][step],
                         "wrist_image": demo_data["obs"]["wrist_cam_1"][step],
                         "state": demo_data["obs"]["joint_pos"][step],
-                        "actions": demo_data["joint_pos_target"][step],
+                        "actions": demo_data["obs"]["joint_pos_target"][step],
                         "task": "Pick up the red cube and place it in the blue container",
                     
                     }
