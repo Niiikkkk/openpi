@@ -96,6 +96,7 @@ class Pi0(_model.BaseModel):
         self.max_subtask_len = config.max_subtask_len
         self.subtask_temperature = config.subtask_temperature
         self.subtask_eos_token = config.subtask_eos_token
+        self.insulate_action_expert = config.insulate_action_expert
         paligemma_config = _gemma.get_config(config.paligemma_variant)
         action_expert_config = _gemma.get_config(config.action_expert_variant)
         # TODO: rewrite gemma in NNX. For now, use bridge.
@@ -104,6 +105,7 @@ class Pi0(_model.BaseModel):
                 configs=[paligemma_config, action_expert_config],
                 embed_dtype=config.dtype,
                 adarms=config.pi05,
+                insulate_expert0=config.insulate_action_expert,
             )
         )
         llm.lazy_init(rngs=rngs, method="init", use_adarms=[False, True] if config.pi05 else [False, False])

@@ -40,6 +40,11 @@ class Pi0Config(_model.BaseModelConfig):
     subtask_temperature: float = 0.0
     subtask_eos_token: int = 1
 
+    # Knowledge insulation (pi0.5 paper): stop the flow-matching action loss's gradient from
+    # reaching the shared VLM backbone, so only discrete-token losses (e.g. subtask prediction)
+    # update it. Pi05-only; disabled by default to preserve released checkpoint behavior.
+    insulate_action_expert: bool = False
+
     pytorch_compile_mode: str | None = "max-autotune"
 
     def __post_init__(self):
@@ -66,6 +71,8 @@ class Pi0Config(_model.BaseModelConfig):
             raise ValueError("max_subtask_len must be smaller than max_token_len.")
         if self.subtask_temperature < 0:
             raise ValueError("subtask_temperature must be non-negative.")
+        if self.insulate_action_expert and not self.pi05:
+            raise ValueError("Knowledge insulation is only supported for pi0.5 models.")
 
     @property
     @override

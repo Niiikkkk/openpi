@@ -159,6 +159,13 @@ class Attention(nn.Module):
     """Attention module."""
 
     configs: Sequence[Config]
+    # Knowledge insulation: stop-gradient the K/V contributed by expert 0 (the VLM backbone)
+    # before it is attended to by any other expert's queries, at every layer. Expert 0's own
+    # queries still see full-gradient K/V, so its self-attention keeps training normally from
+    # whatever loss depends on it (e.g. a discrete language/subtask loss) - only the *other*
+    # experts (e.g. the flow-matching action expert) are prevented from backpropagating into
+    # expert 0's weights through this attention op.
+    insulate_expert0: bool = False
 
     @nn.compact
     def __call__(self, xs, positions, attn_mask, kv_cache):
@@ -170,6 +177,7 @@ class Attention(nn.Module):
         dtype = next(x.dtype for x in xs if x is not None)  # original dtype, could be half-precision
 
         qkvs = []
+        #xs has 2 elements: x[0] = paligemma, x[1] = action expert
         for i, (x, config) in enumerate(zip(xs, self.configs, strict=True)):
             if x is None:
                 continue
@@ -213,21 +221,65 @@ class Attention(nn.Module):
             k = jnp.concatenate([cache_k, k], axis=1)
             v = jnp.concatenate([cache_v, v], axis=1)
 
+        # Knowledge insulation only applies to the single joint forward pass over all experts at
+        # once (no kv_cache), and only when expert 0's tokens and at least one other expert's
+        # tokens are both present this call - otherwise there is nothing to insulate expert 0 from.
+        insulate = (
+            self.insulate_expert0
+            and kv_cache is None
+            and len(xs) > 1
+            and xs[0] is not None
+            and any(x is not None for x in xs[1:])
+        )
+        if insulate:
+            expert0_len = xs[0].shape[1]
+            # Same forward values as k/v; stop_gradient only affects which experts' losses can
+            # backprop through expert 0's K/V projections for this layer.
+            k_insulated = jnp.concatenate(
+                [jax.lax.stop_gradient(k[:, :expert0_len]), k[:, expert0_len:]], axis=1
+            )
+            v_insulated = jnp.concatenate(
+                [jax.lax.stop_gradient(v[:, :expert0_len]), v[:, expert0_len:]], axis=1
+            )
+
+            #Here compute the insulated k,v. Reminder: v and k and concatenated across experts
+            # v = [v_VLM, v_action_expert]; k = [k_VLM, k_action_expert]
+            # - k_insulated = [stop_gradient(k_VLM), k_action_expert]
+            # - v_insulated = [stop_gradient(v_VLM), v_action_expert]
+
+            # True for query rows belonging to expert 0 itself - those keep full-gradient K/V.
+            query_is_expert0 = jnp.arange(q.shape[1]) < expert0_len
+
         q = einops.rearrange(q, "B T (K G) H -> B T K G H", K=self.configs[0].num_kv_heads)
-        logits = jnp.einsum("BTKGH,BSKH->BKGTS", q, k, preferred_element_type=jnp.float32)
 
         if attn_mask.shape != (q.shape[0], 1, q.shape[1], k.shape[1]):
             raise ValueError(
                 f"Attention mask with shape {attn_mask.shape} but shapes for q and k are: {q.shape} and {k.shape}"
             )
 
-        # big_neg = jnp.finfo(logits.dtype).min
-        big_neg = -2.3819763e38  # See gemma/modules.py
-        masked_logits = jnp.where(attn_mask[:, :, None, :, :], logits, big_neg)
+        def _attend(k_arr, v_arr):
+            logits = jnp.einsum("BTKGH,BSKH->BKGTS", q, k_arr, preferred_element_type=jnp.float32)
+            # big_neg = jnp.finfo(logits.dtype).min
+            big_neg = -2.3819763e38  # See gemma/modules.py
+            masked_logits = jnp.where(attn_mask[:, :, None, :, :], logits, big_neg)
+            probs = jax.nn.softmax(masked_logits, axis=-1).astype(dtype)
+            return jnp.einsum("BKGTS,BSKH->BTKGH", probs, v_arr)
 
-        probs = jax.nn.softmax(masked_logits, axis=-1).astype(dtype)
+        if insulate:
+            # Forward values are identical in both branches (stop_gradient is a no-op forward);
+            # this only determines which branch's gradient tape each query row's output uses.
+            encoded_full = _attend(k, v)
+            encoded_insulated = _attend(k_insulated, v_insulated)
+            encoded = jnp.where(query_is_expert0[None, :, None, None, None], encoded_full, encoded_insulated)
+            #what happens here:
+            # - encoded_full = attention output for all queries using full-gradient k/v
+            # - encoded_insulated = attention output for all queries using insulated k/v
+            # - encoded = attention output for all queries, based on query_is_expert0 mask:
+            #   - for queries belonging to VLM, use encoded_full (full-gradient k/v)
+            #   - for queries belonging to action expert, use encoded_insulated (insulated k/v)
+        else:
+            encoded = _attend(k, v)
 
-        encoded = jnp.einsum("BKGTS,BSKH->BTKGH", probs, v)
         encoded = einops.rearrange(encoded, "B T K G H -> B T (K G) H")
 
         out = []
@@ -245,6 +297,13 @@ class Attention(nn.Module):
                 start = end
             else:
                 out.append(None)
+
+
+        # Here out is composed of the attention outputs for each expert, in the same order as xs. 
+        # First part of out corresponds to the VLM expert, so the first part of the encoded array.
+        # The second part of out corresponds to the action expert, so the second part of the encoded array.
+        # Note: the first part of the encoded array is computed using full-gradient k/v, while the second part is computed using insulated k/v.
+        # So, in the pi0.py model, the action loss is computed on the second part of out, so it will not backpropagate into the VLM expert's weights through this attention op!! (if insulate_expert0 is True)
 
         return out, (k, v)
 
@@ -288,13 +347,14 @@ class Block(nn.Module):
 
     dropout: float = 0.0
     dropout_bdims: tuple[int, ...] = ()
+    insulate_expert0: bool = False
 
     @nn.compact
     def __call__(self, xs, kv_cache, positions, attn_mask, adarms_cond, deterministic=True):  # noqa: FBT002
         xs = sharding.activation_sharding_constraint(xs)
         drop = nn.Dropout(self.dropout, self.dropout_bdims) if self.dropout else lambda x, _: x
 
-        attn = Attention(configs=self.configs, name="attn")
+        attn = Attention(configs=self.configs, name="attn", insulate_expert0=self.insulate_expert0)
 
         pre_attn = []
         gates = []
@@ -346,6 +406,8 @@ class Module(nn.Module):
     dropout: float = 0.0
     dropout_bdims: tuple[int, ...] = ()  # Every float is dropped independently.
     adarms: bool = False
+    # See Attention.insulate_expert0.
+    insulate_expert0: bool = False
 
     def setup(self):
         # all experts must have the same depth
@@ -378,6 +440,7 @@ class Module(nn.Module):
             configs=self.configs,
             dropout=self.dropout,
             dropout_bdims=self.dropout_bdims,
+            insulate_expert0=self.insulate_expert0,
         )
         self.final_norms = [RMSNorm(name=_name("final_norm", i)) for i in range(len(self.configs))]
 

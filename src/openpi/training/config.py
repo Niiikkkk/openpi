@@ -30,6 +30,7 @@ import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
 
 import openpi.policies.ur7e_single_arm as ur7e_policy
+import openpi.policies.ur7e_bimanual_arm as ur7e_bimanual_policy
 
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
@@ -496,6 +497,7 @@ class LeRobotUR7eDataConfig(DataConfigFactory):
                         "state": "state",
                         "actions": "actions",
                         "prompt": "prompt",
+                        "subtask": "subtask",
                     }
                 )
             ]
@@ -507,6 +509,48 @@ class LeRobotUR7eDataConfig(DataConfigFactory):
             )
         
         delta_action_mask = _transforms.make_bool_mask(6, -1)
+        data_transforms = data_transforms.push(
+            inputs=[_transforms.DeltaActions(delta_action_mask)],
+            outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+        )
+
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
+@dataclasses.dataclass(frozen=True)
+#TODO: Modify THIS
+class LeRobotUR7eBimanualDataConfig(DataConfigFactory):
+   
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "image": "image",
+                        "wrist_image_left": "wrist_image_left",
+                        "wrist_image_right": "wrist_image_right",
+                        "state": "state",
+                        "actions": "actions",
+                        "prompt": "prompt",
+                        "subtask": "subtask",
+                    }
+                )
+            ]
+        )
+        # We assume joint *velocity* actions, so we should *not* apply an additional delta transform.
+        data_transforms = _transforms.Group(
+                inputs=[ur7e_bimanual_policy.UR7eBimanualInputs(model_type=model_config.model_type)],
+                outputs=[ur7e_bimanual_policy.UR7eBimanualOutputs()],
+            )
+        
+        delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
         data_transforms = data_transforms.push(
             inputs=[_transforms.DeltaActions(delta_action_mask)],
             outputs=[_transforms.AbsoluteActions(delta_action_mask)],
@@ -851,6 +895,31 @@ _CONFIGS = [
         keep_period=1000,
     ),
     TrainConfig(
+        name="ur7e_pi05_finetune_lora",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=50,
+                ),
+        data=LeRobotUR7eDataConfig(
+            repo_id="ur7e_single_arm",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=5_000,
+        # The freeze filter defines which parameters should be frozen during training.
+        # We have a convenience function in the model config that returns the default freeze filter
+        # for the given model config for LoRA finetuning. Just make sure it matches the model config
+        # you chose above.
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", 
+            pi05=True, action_horizon=50
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+        wandb_enabled=False,
+        batch_size=32,
+        keep_period=1000,
+    ),
+    TrainConfig(
         # Change the name to reflect your model and dataset.
         name="ur7e_pi05_finetune_all",
         # Here you define the model config -- In this example we use pi0 as the model
@@ -877,10 +946,10 @@ _CONFIGS = [
         num_train_steps=10_000,
     ),
     TrainConfig(
-        name="ur7e_pi05_finetune_lora",
+        name="ur7e_pi05_bimanual_finetune_lora",
         model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=50),
-        data=LeRobotUR7eDataConfig(
-            repo_id="ur7e_single_arm",
+        data=LeRobotUR7eBimanualDataConfig(
+            repo_id="ur7e_bimanual_arm",
             base_config=DataConfig(prompt_from_task=True),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),

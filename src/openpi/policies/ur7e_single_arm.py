@@ -68,6 +68,11 @@ class UR7eInputs(transforms.DataTransformFn):
                 data["prompt"] = data["prompt"].decode("utf-8")
             inputs["prompt"] = data["prompt"]
 
+        if "subtask" in data:
+            if isinstance(data["subtask"], bytes):
+                data["subtask"] = data["subtask"].decode("utf-8")
+            inputs["subtask"] = data["subtask"]
+
         return inputs
 
 

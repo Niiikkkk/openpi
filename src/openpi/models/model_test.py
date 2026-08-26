@@ -102,6 +102,11 @@ def test_pi05_subtask_model():
     assert outputs["subtask_token_mask"].shape == (batch_size, config.max_subtask_len)
 
 
+def test_pi05_config_requires_pi05_for_insulation():
+    with pytest.raises(ValueError, match="Knowledge insulation"):
+        pi0_config.Pi0Config(pi05=False, insulate_action_expert=True)
+
+
 @pytest.mark.manual
 def test_model_restore():
     key = jax.random.key(0)
