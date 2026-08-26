@@ -539,7 +539,7 @@ class LeRobotUR7eBimanualDataConfig(DataConfigFactory):
                         "state": "state",
                         "actions": "actions",
                         "prompt": "prompt",
-                        "subtask": "subtask",
+                        # "subtask": "subtask",
                     }
                 )
             ]
