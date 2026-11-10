@@ -1026,7 +1026,7 @@ _CONFIGS = [
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
         wandb_enabled=False,
-        batch_size=1,
+        batch_size=32,
         keep_period=1000,
     ),
     TrainConfig(
