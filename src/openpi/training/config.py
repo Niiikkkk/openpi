@@ -574,7 +574,7 @@ class LeRobotUR7eRealDataConfig(DataConfigFactory):
             inputs=[
                 _transforms.RepackTransform(
                     {
-                        "image": "image",
+                        "image": "top_image",
                         "wrist_image_left": "wrist_image_left",
                         "wrist_image_right": "wrist_image_right",
                         "state": "state",

@@ -74,6 +74,8 @@ class UR7eRealInputs(transforms.DataTransformFn):
                 data["subtask"] = data["subtask"].decode("utf-8")
             inputs["subtask"] = data["subtask"]
 
+        print(inputs)
+
         return inputs
 
 
