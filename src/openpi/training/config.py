@@ -1014,7 +1014,7 @@ _CONFIGS = [
             repo_id="ur7e_real_robot",
             base_config=DataConfig(prompt_from_task=True),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/home/pilatus/Nicholas/openpi/checkpoints/ur7e_pi05_real/ur7e_real/4999/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         num_train_steps=15_000,
         # The freeze filter defines which parameters should be frozen during training.
         # We have a convenience function in the model config that returns the default freeze filter
