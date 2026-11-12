@@ -225,6 +225,19 @@ def main(config: _config.TrainConfig):
     data_iter = iter(data_loader)
     batch = next(data_iter)
 
+    # o,a = batch
+    # print(jnp.shape(jnp.array(a)))
+    # print(a[0][0])
+    # print(o.state[0])
+    # img_top = np.asarray(((batch[0].images["base_0_rgb"][0] + 1.0) * 127.5).clip(0, 255)).astype(np.uint8)
+    # img_left = np.asarray(((batch[0].images["left_wrist_0_rgb"][0] + 1.0) * 127.5).clip(0, 255)).astype(np.uint8)
+    # img_right = np.asarray(((batch[0].images["right_wrist_0_rgb"][0] + 1.0) * 127.5).clip(0, 255)).astype(np.uint8)
+    # from PIL import Image
+    # Image.fromarray(img_top).show()
+    # Image.fromarray(img_left).show()
+    # Image.fromarray(img_right).show()
+    # exit()
+
     logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
 
     # Log images from first batch to sanity check.

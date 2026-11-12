@@ -1014,8 +1014,8 @@ _CONFIGS = [
             repo_id="ur7e_real_robot",
             base_config=DataConfig(prompt_from_task=True),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=5_000,
+        weight_loader=weight_loaders.CheckpointWeightLoader("/home/pilatus/Nicholas/openpi/checkpoints/ur7e_pi05_real/ur7e_real/4999/params"),
+        num_train_steps=15_000,
         # The freeze filter defines which parameters should be frozen during training.
         # We have a convenience function in the model config that returns the default freeze filter
         # for the given model config for LoRA finetuning. Just make sure it matches the model config
@@ -1026,7 +1026,7 @@ _CONFIGS = [
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
         wandb_enabled=False,
-        batch_size=16,
+        batch_size=32,
         keep_period=1000,
     ),
     TrainConfig(
