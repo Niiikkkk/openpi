@@ -1015,7 +1015,7 @@ _CONFIGS = [
             base_config=DataConfig(prompt_from_task=True),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=15_000,
+        num_train_steps=30_000,
         # The freeze filter defines which parameters should be frozen during training.
         # We have a convenience function in the model config that returns the default freeze filter
         # for the given model config for LoRA finetuning. Just make sure it matches the model config
@@ -1029,6 +1029,19 @@ _CONFIGS = [
         batch_size=32,
         keep_period=1000,
     ),
+    TrainConfig(
+            name="ur7e_pi05_real_from_droid",
+            model=pi0_config.Pi0Config(pi05=True, action_horizon=30),
+            data=LeRobotUR7eRealDataConfig(
+                repo_id="ur7e_real_robot",
+                base_config=DataConfig(prompt_from_task=True),
+            ),
+            weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_droid/params"),
+            num_train_steps=30_000,
+            wandb_enabled=False,
+            batch_size=32,
+            keep_period=3000,
+        ),
     TrainConfig(
         name="pi0_libero_low_mem_finetune",
         # Here is an example of loading a pi0 model for LoRA fine-tuning.
