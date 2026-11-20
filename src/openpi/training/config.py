@@ -1026,14 +1026,14 @@ _CONFIGS = [
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
         wandb_enabled=False,
-        batch_size=32,
+        batch_size=1,
         keep_period=1000,
     ),
     TrainConfig(
             name="ur7e_pi05_real_from_droid",
             model=pi0_config.Pi0Config(pi05=True, action_horizon=30),
             data=LeRobotUR7eRealDataConfig(
-                repo_id="ur7e_real_robot",
+                repo_id="ur7e_real_robot_new_size",
                 base_config=DataConfig(prompt_from_task=True),
             ),
             weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_droid/params"),

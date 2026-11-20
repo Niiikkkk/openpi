@@ -26,17 +26,19 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 import tyro
+from openpi_client import image_tools
 
-REPO_NAME = "ur7e_real_robot"  # Name of the output dataset, also used for the Hugging Face Hub
+REPO_NAME = "ur7e_real_robot_new_size"  # Name of the output dataset, also used for the Hugging Face Hub
 
 
 def resize_image(image, size):
-    image = Image.fromarray(image)
-    return np.array(image.resize(size, resample=Image.BICUBIC))
+    # image = Image.fromarray(image)
+    img = image_tools.resize_with_pad(image, 224, 224)
+    return img
 
 
 def main(data_dir: str, *, push_to_hub: bool = False):
-    output_path = Path("/media/adminalp/data/lerobot_db") / REPO_NAME
+    output_path = Path("/media/adminalp/data/lerobot_db_new_size") / REPO_NAME
     print(f"Output path: {output_path}")
     data_dir = Path(data_dir)
 
@@ -45,17 +47,17 @@ def main(data_dir: str, *, push_to_hub: bool = False):
     features = {
         "top_image": {
             "dtype": "image",
-            "shape": (720, 1280, 3),  # This is the resolution used in the DROID RLDS dataset
+            "shape": (224, 224, 3),  # This is the resolution used in the DROID RLDS dataset
             "names": ["height", "width", "channel"],
         },
         "wrist_image_left": {
             "dtype": "image",
-            "shape": (480, 640, 3),
+            "shape": (224, 224, 3),
             "names": ["height", "width", "channel"],
         },
         "wrist_image_right": {
             "dtype": "image",
-            "shape": (480, 640, 3),
+            "shape": (224, 224, 3),
             "names": ["height", "width", "channel"],
         },
         "state": {
@@ -103,7 +105,7 @@ def main(data_dir: str, *, push_to_hub: bool = False):
     # We will loop over each dataset_name and write episodes to the LeRobot dataset
     for episode_path in tqdm(episode_paths, desc="Converting episodes"):
         original_file = str(episode_path).replace("_aligned_v2","")
-        original_file = original_file.replace("dataset_aligned_cleaned","")
+        original_file = "/media/adminalp/data/dataset/" + original_file.split("/")[-1]
         with h5py.File(original_file, "r") as original_demo, h5py.File(episode_path, "r") as demo:
             demo_data = demo
             steps = demo_data["images"]["left_camera"]["index"].shape[0]
@@ -124,9 +126,9 @@ def main(data_dir: str, *, push_to_hub: bool = False):
 
                 dataset.add_frame(
                     {
-                        "top_image": cv2.imdecode(np.asarray(original_demo["images"]["top_camera"]["data"][top_cam_idx], dtype=np.uint8), cv2.IMREAD_COLOR),
-                        "wrist_image_left": cv2.imdecode(np.asarray(original_demo["images"]["left_camera"]["data"][left_cam_idx], dtype=np.uint8), cv2.IMREAD_COLOR),
-                        "wrist_image_right": cv2.imdecode(np.asarray(original_demo["images"]["right_camera"]["data"][right_cam_idx], dtype=np.uint8), cv2.IMREAD_COLOR),
+                        "top_image": resize_image(cv2.imdecode(np.asarray(original_demo["images"]["top_camera"]["data"][top_cam_idx], dtype=np.uint8), cv2.IMREAD_COLOR), (224, 224)),
+                        "wrist_image_left": resize_image(cv2.imdecode(np.asarray(original_demo["images"]["left_camera"]["data"][left_cam_idx], dtype=np.uint8), cv2.IMREAD_COLOR), (224, 224)),
+                        "wrist_image_right": resize_image(cv2.imdecode(np.asarray(original_demo["images"]["right_camera"]["data"][right_cam_idx], dtype=np.uint8), cv2.IMREAD_COLOR), (224, 224)),
                         "state": state,
                         "actions": action,
                         "task": "Pick up the Ethernet cable and plug it into the socket",
