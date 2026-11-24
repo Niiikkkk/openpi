@@ -1060,7 +1060,7 @@ _CONFIGS = [
             repo_id="ur7e_real_robot_new_size_handover",
             base_config=DataConfig(prompt_from_task=True),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/home/work/openpi/ckpts/29999/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/home/work/openpi/ckpts/params"),
         num_train_steps=15_000,
         wandb_enabled=False,
         batch_size=32,
