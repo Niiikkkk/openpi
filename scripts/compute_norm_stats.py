@@ -49,6 +49,7 @@ def create_torch_dataloader(
         shuffle = False
     data_loader = _data_loader.TorchDataLoader(
         dataset,
+        None,
         local_batch_size=batch_size,
         num_workers=num_workers,
         shuffle=shuffle,
