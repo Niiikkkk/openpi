@@ -179,6 +179,7 @@ def transform_dataset(dataset: Dataset, data_config: _config.DataConfig, *, skip
                 "Make sure to run `scripts/compute_norm_stats.py --config-name=<your-config>`."
             )
         norm_stats = data_config.norm_stats
+        print(norm_stats)
 
     return TransformedDataset(
         dataset,
@@ -241,6 +242,10 @@ def create_data_loader(
     """
     data_config = config.data.create(config.assets_dirs, config.model)
     logging.info(f"data_config: {data_config}")
+    other_config = None
+    if config.other_data is not None:
+        other_config = config.other_data.create(config.assets_dirs, config.model)
+
 
     if data_config.rlds_data_dir is not None:
         return create_rlds_data_loader(
@@ -255,6 +260,7 @@ def create_data_loader(
         )
     return create_torch_data_loader(
         data_config,
+        other_config,
         model_config=config.model,
         action_horizon=config.model.action_horizon,
         batch_size=config.batch_size,
@@ -270,6 +276,7 @@ def create_data_loader(
 
 def create_torch_data_loader(
     data_config: _config.DataConfig,
+    other_config: _config.DataConfig | None,
     model_config: _model.BaseModelConfig,
     action_horizon: int,
     batch_size: int,
@@ -302,6 +309,11 @@ def create_torch_data_loader(
     dataset = create_torch_dataset(data_config, action_horizon, model_config)
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
 
+    other_dataset = None
+    if other_config is not None:
+        other_dataset = create_torch_dataset(other_config, action_horizon, model_config)
+        other_dataset = transform_dataset(other_dataset, data_config, skip_norm_stats=skip_norm_stats)
+
     # Use TorchDataLoader for both frameworks
     # For PyTorch DDP, create DistributedSampler and divide batch size by world size
     # For JAX, divide by process count
@@ -324,6 +336,7 @@ def create_torch_data_loader(
     logging.info(f"local_batch_size: {local_batch_size}")
     data_loader = TorchDataLoader(
         dataset,
+        other_dataset,
         local_batch_size=local_batch_size,
         sharding=None if framework == "pytorch" else sharding,
         shuffle=(sampler is None and shuffle),  # Don't shuffle if using sampler
@@ -384,6 +397,7 @@ class TorchDataLoader:
     def __init__(
         self,
         dataset,
+        other_dataset,
         local_batch_size: int,
         *,
         sharding: jax.sharding.Sharding | None = None,
@@ -431,8 +445,22 @@ class TorchDataLoader:
 
         generator = torch.Generator()
         generator.manual_seed(seed)
+
+        dataset = typing.cast(torch.utils.data.Dataset, dataset)
+        if other_dataset is not None:
+            combined = torch.utils.data.ConcatDataset(datasets=[dataset,other_dataset])
+            len_dataset = len(dataset)
+            len_other_dataset = len(other_dataset)
+            frac = 0.4
+            weights = torch.cat([
+                torch.full((len_dataset,), (1 - frac) / len_dataset),
+                torch.full((len_other_dataset,), frac / len_other_dataset),
+            ])
+            sampler = torch.utils.data.WeightedRandomSampler(weights,len(combined))
+            dataset = combined
+
         self._data_loader = torch.utils.data.DataLoader(
-            typing.cast(torch.utils.data.Dataset, dataset),
+            dataset,
             batch_size=local_batch_size,
             shuffle=(sampler is None and shuffle),  # Don't shuffle if using sampler
             sampler=sampler,

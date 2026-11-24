@@ -639,6 +639,9 @@ class TrainConfig:
     # Determines the data to be trained on.
     data: DataConfigFactory = dataclasses.field(default_factory=FakeDataConfig)
 
+    # Data from the second dataset, used for finetuning with handover data
+    other_data: DataConfigFactory | None = None
+
     # Base directory for config assets (e.g., norm stats).
     assets_base_dir: str = "./assets"
     # Base directory for checkpoints.
@@ -1008,10 +1011,14 @@ _CONFIGS = [
         keep_period=1000,
     ),
     TrainConfig(
-        name="ur7e_pi05_real",
+        name="ur7e_pi05_real_new_size",
         model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", pi05=True, action_horizon=50),
         data=LeRobotUR7eRealDataConfig(
-            repo_id="ur7e_real_robot",
+            repo_id="ur7e_real_robot_new_size",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        other_data=LeRobotUR7eRealDataConfig(
+            repo_id="ur7e_real_robot_new_size_handover",
             base_config=DataConfig(prompt_from_task=True),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
@@ -1042,6 +1049,23 @@ _CONFIGS = [
             batch_size=32,
             keep_period=3000,
         ),
+    TrainConfig(
+        name="ur7e_pi05_real_from_droid_handover_finetune",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=30),
+        data=LeRobotUR7eRealDataConfig(
+            repo_id="ur7e_real_robot_new_size",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        other_data=LeRobotUR7eRealDataConfig(
+            repo_id="ur7e_real_robot_new_size_handover",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("FillWithCheckpoint"),
+        num_train_steps=15_000,
+        wandb_enabled=False,
+        batch_size=32,
+        keep_period=1500,
+    ),
     TrainConfig(
         name="pi0_libero_low_mem_finetune",
         # Here is an example of loading a pi0 model for LoRA fine-tuning.
