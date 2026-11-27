@@ -28,7 +28,7 @@ from tqdm import tqdm
 import tyro
 from openpi_client import image_tools
 
-REPO_NAME = "ur7e_real_robot_new_size_handover"  # Name of the output dataset, also used for the Hugging Face Hub
+REPO_NAME = "ur7e_real_robot_new_size_handover_dagger"  # Name of the output dataset, also used for the Hugging Face Hub
 
 
 def resize_image(image, size):
@@ -38,9 +38,8 @@ def resize_image(image, size):
 
 
 def main(data_dir: str, *, push_to_hub: bool = False):
-    output_path = Path("/media/adminalp/data/lerobot_db_new_size_handover") / REPO_NAME
+    output_path = Path("/media/adminalp/data/lerobot_db_new_size") / REPO_NAME
     data_dir = Path(data_dir)
-    print(data_dir)
 
     # We will follow the DROID data naming conventions here.
     # LeRobot assumes that dtype of image data is `image`
@@ -105,7 +104,8 @@ def main(data_dir: str, *, push_to_hub: bool = False):
     # We will loop over each dataset_name and write episodes to the LeRobot dataset
     for episode_path in tqdm(episode_paths, desc="Converting episodes"):
         original_file = str(episode_path).replace("_aligned_v2","")
-        original_file = "/media/adminalp/data/dataset_handover/" + original_file.split("/")[-1]
+        or_dir = "/".join(str(data_dir).split("/")[:-1])
+        original_file = or_dir + "/" + original_file.split("/")[-1]
         with h5py.File(original_file, "r") as original_demo, h5py.File(episode_path, "r") as demo:
             demo_data = demo
             steps = demo_data["images"]["left_camera"]["index"].shape[0]

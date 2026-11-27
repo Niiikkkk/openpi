@@ -8,14 +8,14 @@
 
 WORK=work
 HF_DATASET=Nicholas-Nik/Teleop
-OTHER_DATASET=Nicholas-Nik/Handover
+OTHER_DATASET=Nicholas-Nik/handover_dagger
 
 REPO_URL=https://github.com/Niiikkkk/openpi.git
 BRANCH=main_subtask
 REPO_ID=ur7e_real_robot_new_size        # must match repo_id in the TrainConfig
-OTHER_REPO_ID=ur7e_real_robot_new_size_handover
+OTHER_REPO_ID=ur7e_real_robot_new_size_handover_dagger
 CONFIG=ur7e_pi05_real_from_droid_handover_finetune
-BASE_CKPT=gs://openpi-assets/checkpoints/pi05_droid/params
+BASE_CKPT=Nicholas-Nik/ckpt
 HF_TOKEN="${HF_TOKEN:?Set HF_TOKEN in your environment (export HF_TOKEN=hf_...)}"
 
 mkdir -p "$WORK"
